@@ -1,9 +1,10 @@
 require('dotenv').config();
-const pool = require('./config/db'); 
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+const { Pool } = require('pg');
 
 const authRoutes = require('./routes/authRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
@@ -11,43 +12,52 @@ const adminRoutes = require('./routes/adminRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const reportRoutes = require('./routes/reportRoutes');
-const studentController = require('./controllers/studentController');
 const applicationRoutes = require('./routes/applicationRoutes');
+const studentController = require('./controllers/studentController');
 const dashboardController = require('./controllers/dashboardController');
 const authController = require('./controllers/authController');
 
-
-
 const app = express();
 
-// EJS Setup
+// ✅ PostgreSQL Pool using DATABASE_URL
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// ✅ Session setup using PostgreSQL store
+app.use(session({
+  store: new pgSession({
+    pool: pool,
+    tableName: 'session'
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 days
+}));
+
+// ✅ EJS Setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Middleware
+// ✅ Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 
-app.use(session({
-  secret: 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 86400000 }
-}));
-
-// Routes
+// ✅ Routes
 app.use('/auth', authRoutes);
 app.use('/', availabilityRoutes);
 app.use('/', adminRoutes);
-app.use('/', studentRoutes); 
+app.use('/', studentRoutes);
 app.use('/', roomRoutes);
 app.use('/', reportRoutes);
 app.use('/api/hostels', require('./routes/hostelRoutes'));
 app.use('/', applicationRoutes);
-// Views
-app.get('/dashboard', dashboardController.renderDashboard);
+
+// ✅ Views
 app.get('/', (req, res) => {
   if (req.session.userId) return res.redirect('/home');
   res.render('landing', { error: null, success: null });
@@ -57,8 +67,6 @@ app.get('/dashboard', (req, res) => {
   if (!req.session.admin) return res.redirect('/');
   res.render('dashboard', { currentPage: 'dashboard' });
 });
-
-// other requires, middleware, routes above...
 
 app.get('/home', async (req, res) => {
   try {
@@ -78,8 +86,6 @@ app.get('/home', async (req, res) => {
   }
 });
 
-// other routes or middleware below...
-
 app.get('/logout', (req, res) => {
   req.session.destroy(err => {
     if (err) {
@@ -94,18 +100,21 @@ app.get('/logout', (req, res) => {
 app.get('/availability', (req, res) => {
   res.render('availability');
 });
-app.get('/student-management', studentController.getStudentManagementPage); // ✅ Uses controller
+
+app.get('/student-management', studentController.getStudentManagementPage);
+
 app.get('/manage-room', async (req, res) => {
-  // Fetch hostels to populate dropdown
   const hostelsResult = await pool.query('SELECT id, name FROM hostels ORDER BY name');
   res.render('manage-room', { hostels: hostelsResult.rows });
 });
-//app.get('/verify', (req, res) => res.send('Verify route works!'));
+
 app.get('/verify', authController.verifyEmail);
+
 app.get('/reset-password', (req, res) => {
   res.redirect(`/auth/reset-password?token=${req.query.token || ''}`);
 });
-// Global Error Handler
+
+// ✅ Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).render('landing', {
@@ -114,8 +123,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
+// ✅ Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
