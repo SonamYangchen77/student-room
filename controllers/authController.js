@@ -4,36 +4,30 @@ const crypto = require('crypto');
 const { sendVerificationEmail, sendResetPasswordEmail } = require('../utils/mailer');
 require('dotenv').config();
 
-// SIGNUP CONTROLLER WITH EMAIL VERIFICATION
+// SIGNUP CONTROLLER WITH EMAIL VERIFICATION AND EXPIRY
 const signup = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    // Prevent registering with admin credentials
     if (email.trim() === process.env.ADMIN_EMAIL?.trim()) {
       return res.status(403).json({ error: 'This email is reserved and cannot be used.' });
     }
 
-    // Check if user already exists
     const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Insert user with verification token and unverified status
     await pool.query(
-      'INSERT INTO users (name, email, password, is_verified, verification_token) VALUES ($1, $2, $3, false, $4)',
-      [name, email, hashedPassword, token]
+      'INSERT INTO users (name, email, password, is_verified, verification_token, verification_token_expires) VALUES ($1, $2, $3, false, $4, $5)',
+      [name, email, hashedPassword, token, expires]
     );
 
-    // Generate BASE_URL-based link
     const verificationLink = `${process.env.BASE_URL}/verify?token=${token}`;
-
-    // Send verification email
     await sendVerificationEmail(email, verificationLink);
 
     return res.status(200).json({ success: 'Signup successful! Check your email for verification.' });
@@ -43,27 +37,45 @@ const signup = async (req, res) => {
   }
 };
 
-// EMAIL VERIFICATION CONTROLLER
+// EMAIL VERIFICATION CONTROLLER WITH EXPIRY CHECK
 const verifyEmail = async (req, res) => {
-  const token = req.query.token;
+  const { token } = req.query;
 
   if (!token) return res.status(400).send('Invalid verification link.');
 
   try {
     const result = await pool.query(
-      'UPDATE users SET is_verified = true, verification_token = null WHERE verification_token = $1 RETURNING *',
+      'SELECT id, verification_token_expires, is_verified FROM users WHERE verification_token = $1',
       [token]
     );
 
-    if (result.rowCount === 0) {
+    const user = result.rows[0];
+
+    if (!user) {
       return res.status(400).send('Verification token expired or invalid.');
     }
+
+    if (user.is_verified) {
+      return res.render('verify-success', {
+        message: 'Email already verified. You can log in now.',
+        loginUrl: '/landing'
+      });
+    }
+
+    const now = new Date();
+    if (user.verification_token_expires && now > user.verification_token_expires) {
+      return res.status(400).send('Verification token expired. Please sign up again.');
+    }
+
+    await pool.query(
+      'UPDATE users SET is_verified = true, verification_token = NULL, verification_token_expires = NULL WHERE id = $1',
+      [user.id]
+    );
 
     return res.render('verify-success', {
       message: 'Email verified successfully! You can now log in.',
       loginUrl: '/landing'
     });
-
   } catch (err) {
     console.error('Email verification error:', err.message);
     return res.status(500).send('Server error during email verification.');
@@ -75,7 +87,6 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Admin login check
     if (
       email.trim() === process.env.ADMIN_EMAIL?.trim() &&
       password.trim() === process.env.ADMIN_PASSWORD?.trim()
@@ -85,7 +96,6 @@ const login = async (req, res) => {
       return res.status(200).json({ success: true, redirect: '/dashboard' });
     }
 
-    // User login check
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -129,7 +139,7 @@ const forgotPassword = async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 3600000); // 1 hour expiry
+    const expires = new Date(Date.now() + 3600000); // 1 hour
 
     await pool.query(
       'UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE email = $3',
@@ -150,15 +160,9 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
-  if (!token) {
-    return res.status(400).json({ error: 'Token is required' });
-  }
-  if (!password || !confirmPassword) {
-    return res.status(400).json({ error: 'Please fill in all fields' });
-  }
-  if (password !== confirmPassword) {
-    return res.status(400).json({ error: 'Passwords do not match' });
-  }
+  if (!token) return res.status(400).json({ error: 'Token is required' });
+  if (!password || !confirmPassword) return res.status(400).json({ error: 'Please fill in all fields' });
+  if (password !== confirmPassword) return res.status(400).json({ error: 'Passwords do not match' });
 
   try {
     const userResult = await pool.query(
