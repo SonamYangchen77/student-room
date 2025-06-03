@@ -21,6 +21,25 @@ const authController = require('./controllers/authController');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ✅ Create session table if it doesn't exist
+async function ensureSessionTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        PRIMARY KEY ("sid")
+      );
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+    `);
+    console.log('✅ Session table ensured');
+  } catch (err) {
+    console.error('❌ Failed to create session table:', err);
+    throw err; // Prevent server start if it fails
+  }
+}
+
 // ✅ Session setup using PostgreSQL store
 app.use(session({
   store: new pgSession({
@@ -125,7 +144,10 @@ app.use((err, req, res, next) => {
 });
 
 // ✅ Start Server after ensuring DB schema
-ensureUsersTable()
+Promise.all([
+  ensureUsersTable(),
+  ensureSessionTable()
+])
   .then(() => {
     app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
