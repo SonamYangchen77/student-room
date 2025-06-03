@@ -8,7 +8,8 @@ const pgSession = require('connect-pg-simple')(session);
 const { pool, ensureUsersTable } = require('./config/db');
 const { ensureRoomsTable } = require('./models/Room');
 const { ensureHostelsTable } = require('./models/Hostel'); // Import here
-const Application = require(path.join(__dirname, 'models', 'Application'));
+const Application = require('./models/application');
+
 
 
 const authRoutes = require('./routes/authRoutes');
