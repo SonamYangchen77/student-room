@@ -4,7 +4,8 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
-const { Pool } = require('pg');
+
+const pool = require('./config/db'); // ✅ using only one pool from db.js
 
 const authRoutes = require('./routes/authRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
@@ -18,12 +19,6 @@ const dashboardController = require('./controllers/dashboardController');
 const authController = require('./controllers/authController');
 
 const app = express();
-
-// ✅ PostgreSQL Pool using DATABASE_URL
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
 
 // ✅ Session setup using PostgreSQL store
 app.use(session({
@@ -104,8 +99,13 @@ app.get('/availability', (req, res) => {
 app.get('/student-management', studentController.getStudentManagementPage);
 
 app.get('/manage-room', async (req, res) => {
-  const hostelsResult = await pool.query('SELECT id, name FROM hostels ORDER BY name');
-  res.render('manage-room', { hostels: hostelsResult.rows });
+  try {
+    const hostelsResult = await pool.query('SELECT id, name FROM hostels ORDER BY name');
+    res.render('manage-room', { hostels: hostelsResult.rows });
+  } catch (err) {
+    console.error('Error fetching hostels:', err);
+    res.status(500).send('Server error');
+  }
 });
 
 app.get('/verify', authController.verifyEmail);
@@ -126,5 +126,5 @@ app.use((err, req, res, next) => {
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
