@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 
+// Ensure applications table exists
 async function ensureApplicationsTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS applications (
@@ -76,18 +77,4 @@ const Application = {
   }
 };
 
-const Room = {
-  setRoomAvailability: async (roomName, isAvailable) => {
-    const query = `
-      UPDATE rooms
-      SET is_available = $1
-      WHERE room_name = $2
-      RETURNING *;
-    `;
-    const values = [isAvailable, roomName];
-    const result = await pool.query(query, values);
-    return result.rows[0];
-  }
-};
-
-module.exports = { Application, Room, ensureApplicationsTable };
+module.exports = { Application, ensureApplicationsTable };
