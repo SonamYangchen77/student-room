@@ -1,4 +1,3 @@
-// config/db.js
 const { Pool } = require('pg');
 
 const pool = new Pool({
@@ -9,7 +8,7 @@ const pool = new Pool({
 });
 
 async function ensureUsersTable() {
-  // Create users table if not exists
+  // Step 1: Create table if not exists (without the new columns)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -19,20 +18,31 @@ async function ensureUsersTable() {
     );
   `);
 
-  // Check and add is_verified column if missing
-  const result = await pool.query(`
+  // Step 2: Ensure 'is_verified' column exists
+  const isVerifiedCheck = await pool.query(`
     SELECT column_name FROM information_schema.columns
     WHERE table_name = 'users' AND column_name = 'is_verified';
   `);
-
-  if (result.rows.length === 0) {
+  if (isVerifiedCheck.rows.length === 0) {
     console.log("🔧 Adding missing 'is_verified' column...");
     await pool.query(`
       ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT false;
     `);
   }
 
-  console.log("✅ Ensured users table and is_verified column exist");
+  // Step 3: Ensure 'verification_token' column exists
+  const verificationTokenCheck = await pool.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'verification_token';
+  `);
+  if (verificationTokenCheck.rows.length === 0) {
+    console.log("🔧 Adding missing 'verification_token' column...");
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN verification_token VARCHAR(255);
+    `);
+  }
+
+  console.log("✅ Ensured users table, is_verified, and verification_token columns exist");
 }
 
 module.exports = {
