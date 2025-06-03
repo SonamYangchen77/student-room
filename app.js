@@ -18,6 +18,21 @@ const studentController = require('./controllers/studentController');
 const dashboardController = require('./controllers/dashboardController');
 const authController = require('./controllers/authController');
 
+
+const createUsersTableIfNotExists = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL
+    );
+  `);
+  console.log('✅ Ensured users table exists');
+};
+
+createUsersTableIfNotExists();
+
 const app = express();
 
 // ✅ Session setup using PostgreSQL store
@@ -51,6 +66,8 @@ app.use('/', roomRoutes);
 app.use('/', reportRoutes);
 app.use('/api/hostels', require('./routes/hostelRoutes'));
 app.use('/', applicationRoutes);
+
+
 
 // ✅ Views
 app.get('/', (req, res) => {
