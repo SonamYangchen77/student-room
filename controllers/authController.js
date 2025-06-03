@@ -4,35 +4,32 @@ const crypto = require('crypto');
 const { sendVerificationEmail, sendResetPasswordEmail } = require('../utils/mailer');
 require('dotenv').config();
 
+const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
+
 // SIGNUP CONTROLLER WITH EMAIL VERIFICATION
 const signup = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    // Prevent registering with admin credentials
     if (email.trim() === process.env.ADMIN_EMAIL?.trim()) {
       return res.status(403).json({ error: 'This email is reserved and cannot be used.' });
     }
 
-    // Check if user already exists
     const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    // Generate email verification token
     const token = crypto.randomBytes(32).toString('hex');
 
-    // Insert user with verification token and unverified status
     await pool.query(
       'INSERT INTO users (name, email, password, is_verified, verification_token) VALUES ($1, $2, $3, false, $4)',
       [name, email, hashedPassword, token]
     );
 
-    // Send verification email
-    await sendVerificationEmail(email, token);
+    const verificationLink = `${BASE_URL}/verify?token=${token}`;
+    await sendVerificationEmail(email, verificationLink);
 
     return res.status(200).json({ success: 'Signup successful! Check your email for verification.' });
   } catch (err) {
@@ -57,10 +54,9 @@ const verifyEmail = async (req, res) => {
       return res.status(400).send('Verification token expired or invalid.');
     }
 
-    // Render a success page or redirect with message
     return res.render('verify-success', {
       message: 'Email verified successfully! You can now log in.',
-      loginUrl: '/landing' // Adjust this route if needed
+      loginUrl: '/landing'
     });
 
   } catch (err) {
@@ -74,7 +70,6 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Admin login check
     if (
       email.trim() === process.env.ADMIN_EMAIL?.trim() &&
       password.trim() === process.env.ADMIN_PASSWORD?.trim()
@@ -84,7 +79,6 @@ const login = async (req, res) => {
       return res.status(200).json({ success: true, redirect: '/dashboard' });
     }
 
-    // User login check
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -92,7 +86,6 @@ const login = async (req, res) => {
 
     const user = result.rows[0];
 
-    // Check if user is verified
     if (!user.is_verified) {
       return res.status(403).json({ error: 'Please verify your email before logging in.' });
     }
@@ -125,21 +118,19 @@ const forgotPassword = async (req, res) => {
   try {
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
-      // For security, always respond the same
       return res.status(200).json({ message: 'If that email exists, a reset link has been sent.' });
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 3600000); // 1 hour expiry
+    const expires = new Date(Date.now() + 3600000); // 1 hour
 
-    // Store token and expiry in DB
     await pool.query(
       'UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE email = $3',
       [token, expires, email]
     );
 
-    // Send reset password email
-    await sendResetPasswordEmail(email, token);
+    const resetLink = `${BASE_URL}/auth/reset-password?token=${token}`;
+    await sendResetPasswordEmail(email, resetLink);
 
     return res.status(200).json({ message: 'If that email exists, a reset link has been sent.' });
   } catch (error) {
@@ -152,15 +143,9 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
-  if (!token) {
-    return res.status(400).json({ error: 'Token is required' });
-  }
-  if (!password || !confirmPassword) {
-    return res.status(400).json({ error: 'Please fill in all fields' });
-  }
-  if (password !== confirmPassword) {
-    return res.status(400).json({ error: 'Passwords do not match' });
-  }
+  if (!token) return res.status(400).json({ error: 'Token is required' });
+  if (!password || !confirmPassword) return res.status(400).json({ error: 'Please fill in all fields' });
+  if (password !== confirmPassword) return res.status(400).json({ error: 'Passwords do not match' });
 
   try {
     const userResult = await pool.query(
