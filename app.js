@@ -8,6 +8,7 @@ const pgSession = require('connect-pg-simple')(session);
 const { pool, ensureUsersTable } = require('./config/db');
 const { ensureRoomsTable } = require('./models/Room');
 const { ensureHostelsTable } = require('./models/Hostel'); // Import here
+const { ensureApplicationsTable } = require('./models/Application');
 
 const authRoutes = require('./routes/authRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
@@ -157,15 +158,16 @@ app.use((err, req, res, next) => {
 Promise.all([
   ensureUsersTable(),
   ensureSessionTable(),
-  ensureHostelsTable(),   // Ensure hostels table first
-  ensureRoomsTable()      // Then rooms table which references hostels
+  ensureHostelsTable(),
+  ensureRoomsTable(),
+  ensureApplicationsTable()   // Applications table ensured here
 ])
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`✅ Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("❌ Failed to set up database:", err);
-    process.exit(1);
+.then(() => {
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
   });
+})
+.catch((err) => {
+  console.error("❌ Failed to set up database:", err);
+  process.exit(1);
+});

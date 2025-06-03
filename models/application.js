@@ -1,4 +1,22 @@
-const pool = require('../config/db');
+const { pool } = require('../config/db');
+
+async function ensureApplicationsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS applications (
+      id SERIAL PRIMARY KEY,
+      room_name VARCHAR(255) NOT NULL,
+      hostel_name VARCHAR(255) NOT NULL,
+      applicant_name VARCHAR(255) NOT NULL,
+      student_id INTEGER NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      contact_number VARCHAR(50) NOT NULL,
+      reason TEXT,
+      status VARCHAR(50) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  console.log('✅ Applications table ensured');
+}
 
 const Application = {
   createApplication: async (applicationData) => {
@@ -57,6 +75,7 @@ const Application = {
     return result.rows[0];
   }
 };
+
 const Room = {
   setRoomAvailability: async (roomName, isAvailable) => {
     const query = `
@@ -71,6 +90,4 @@ const Room = {
   }
 };
 
-module.exports = { Application, Room };
-
-module.exports = Application;
+module.exports = { Application, Room, ensureApplicationsTable };
