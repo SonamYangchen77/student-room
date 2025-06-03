@@ -4,31 +4,36 @@ const crypto = require('crypto');
 const { sendVerificationEmail, sendResetPasswordEmail } = require('../utils/mailer');
 require('dotenv').config();
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
-
 // SIGNUP CONTROLLER WITH EMAIL VERIFICATION
 const signup = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
+    // Prevent registering with admin credentials
     if (email.trim() === process.env.ADMIN_EMAIL?.trim()) {
       return res.status(403).json({ error: 'This email is reserved and cannot be used.' });
     }
 
+    // Check if user already exists
     const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     const token = crypto.randomBytes(32).toString('hex');
 
+    // Insert user with verification token and unverified status
     await pool.query(
       'INSERT INTO users (name, email, password, is_verified, verification_token) VALUES ($1, $2, $3, false, $4)',
       [name, email, hashedPassword, token]
     );
 
-    const verificationLink = `${BASE_URL}/verify?token=${token}`;
+    // Generate BASE_URL-based link
+    const verificationLink = `${process.env.BASE_URL}/verify?token=${token}`;
+
+    // Send verification email
     await sendVerificationEmail(email, verificationLink);
 
     return res.status(200).json({ success: 'Signup successful! Check your email for verification.' });
@@ -70,6 +75,7 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Admin login check
     if (
       email.trim() === process.env.ADMIN_EMAIL?.trim() &&
       password.trim() === process.env.ADMIN_PASSWORD?.trim()
@@ -79,6 +85,7 @@ const login = async (req, res) => {
       return res.status(200).json({ success: true, redirect: '/dashboard' });
     }
 
+    // User login check
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -122,14 +129,14 @@ const forgotPassword = async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 3600000); // 1 hour
+    const expires = new Date(Date.now() + 3600000); // 1 hour expiry
 
     await pool.query(
       'UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE email = $3',
       [token, expires, email]
     );
 
-    const resetLink = `${BASE_URL}/auth/reset-password?token=${token}`;
+    const resetLink = `${process.env.BASE_URL}/reset-password?token=${token}`;
     await sendResetPasswordEmail(email, resetLink);
 
     return res.status(200).json({ message: 'If that email exists, a reset link has been sent.' });
@@ -143,9 +150,15 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
-  if (!token) return res.status(400).json({ error: 'Token is required' });
-  if (!password || !confirmPassword) return res.status(400).json({ error: 'Please fill in all fields' });
-  if (password !== confirmPassword) return res.status(400).json({ error: 'Passwords do not match' });
+  if (!token) {
+    return res.status(400).json({ error: 'Token is required' });
+  }
+  if (!password || !confirmPassword) {
+    return res.status(400).json({ error: 'Please fill in all fields' });
+  }
+  if (password !== confirmPassword) {
+    return res.status(400).json({ error: 'Passwords do not match' });
+  }
 
   try {
     const userResult = await pool.query(
