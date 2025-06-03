@@ -15,8 +15,10 @@ const roomRoutes = require('./routes/roomRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const studentController = require('./controllers/studentController');
-const dashboardController = require('./controllers/dashboardController');
+
 const authController = require('./controllers/authController');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -71,7 +73,7 @@ app.use('/', roomRoutes);
 app.use('/', reportRoutes);
 app.use('/api/hostels', require('./routes/hostelRoutes'));
 app.use('/', applicationRoutes);
-
+app.use('/', dashboardRoutes);
 // ✅ Views
 app.get('/', (req, res) => {
   if (req.session.userId) return res.redirect('/home');
