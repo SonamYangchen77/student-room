@@ -78,9 +78,16 @@ app.get('/', (req, res) => {
   res.render('landing', { error: null, success: null });
 });
 
-app.get('/dashboard', (req, res) => {
-  if (!req.session.admin) return res.redirect('/');
-  res.render('dashboard', { currentPage: 'dashboard' });
+app.get('/dashboard', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) FROM users');
+    const totalStudents = result.rows[0].count;
+
+    res.render('dashboard', { totalStudents }); // ✅ Send variable to EJS
+  } catch (err) {
+    console.error('Dashboard error:', err);
+    res.status(500).send('Error loading dashboard');
+  }
 });
 
 app.get('/home', async (req, res) => {
