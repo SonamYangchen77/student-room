@@ -1,8 +1,21 @@
-const db = require('../config/db');
+const db = require('../config/db'); // database pool
 
+// Function to create rooms table if it doesn't exist
+async function ensureRoomsTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS rooms (
+      id SERIAL PRIMARY KEY,
+      room_name VARCHAR(100) NOT NULL,
+      gender VARCHAR(10) NOT NULL,
+      hostel_id INTEGER REFERENCES hostels(id),
+      is_available BOOLEAN DEFAULT true
+    );
+  `);
+  console.log('✅ Rooms table ensured');
+}
+
+// Room model with methods
 const Room = {
-  // Existing methods
-
   async getAvailableRooms() {
     const query = `
       SELECT rooms.*, hostels.name AS hostel_name
@@ -47,7 +60,6 @@ const Room = {
     return rows;
   },
 
-  // New method to delete a room by room_name and hostel_name
   async deleteRoom(room_name, hostel_name) {
     const query = `
       DELETE FROM rooms
@@ -60,4 +72,7 @@ const Room = {
   },
 };
 
-module.exports = Room;
+module.exports = {
+  ensureRoomsTable,
+  Room,
+};

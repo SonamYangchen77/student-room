@@ -6,6 +6,7 @@ const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 
 const { pool, ensureUsersTable } = require('./config/db');
+const { ensureRoomsTable } = require('./models/Room'); // Import ensureRoomsTable here
 
 const authRoutes = require('./routes/authRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
@@ -18,7 +19,6 @@ const studentController = require('./controllers/studentController');
 
 const authController = require('./controllers/authController');
 const dashboardRoutes = require('./routes/dashboardRoutes');
-
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -74,6 +74,7 @@ app.use('/', reportRoutes);
 app.use('/api/hostels', require('./routes/hostelRoutes'));
 app.use('/', applicationRoutes);
 app.use('/', dashboardRoutes);
+
 // ✅ Views
 app.get('/', (req, res) => {
   if (req.session.userId) return res.redirect('/home');
@@ -85,7 +86,7 @@ app.get('/dashboard', async (req, res) => {
     const result = await pool.query('SELECT COUNT(*) FROM users');
     const totalStudents = result.rows[0].count;
 
-    res.render('dashboard', { totalStudents }); // ✅ Send variable to EJS
+    res.render('dashboard', { totalStudents });
   } catch (err) {
     console.error('Dashboard error:', err);
     res.status(500).send('Error loading dashboard');
@@ -152,10 +153,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ✅ Start Server after ensuring DB schema
+// ✅ Start Server after ensuring all DB schema
 Promise.all([
   ensureUsersTable(),
-  ensureSessionTable()
+  ensureSessionTable(),
+  ensureRoomsTable()  // Added here to ensure rooms table exists
 ])
   .then(() => {
     app.listen(PORT, () => {
