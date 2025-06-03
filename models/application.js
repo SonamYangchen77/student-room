@@ -1,21 +1,26 @@
 const { pool } = require('../config/db');
 
 async function ensureApplicationsTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS applications (
-      id SERIAL PRIMARY KEY,
-      room_name VARCHAR(255) NOT NULL,
-      hostel_name VARCHAR(255) NOT NULL,
-      applicant_name VARCHAR(255) NOT NULL,
-      student_id INTEGER NOT NULL,
-      email VARCHAR(255) NOT NULL,
-      contact_number VARCHAR(50) NOT NULL,
-      reason TEXT,
-      status VARCHAR(50) NOT NULL DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  console.log('✅ Applications table ensured');
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS applications (
+        id SERIAL PRIMARY KEY,
+        room_name VARCHAR(255) NOT NULL,
+        hostel_name VARCHAR(255) NOT NULL,
+        applicant_name VARCHAR(255) NOT NULL,
+        student_id INTEGER NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        contact_number VARCHAR(50) NOT NULL,
+        reason TEXT,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ Applications table ensured');
+  } catch (error) {
+    console.error('❌ Error ensuring applications table:', error);
+    throw error;
+  }
 }
 
 const Application = {
@@ -48,19 +53,29 @@ const Application = {
       reason
     ];
 
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    try {
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    } catch (error) {
+      console.error('❌ Error creating application:', error);
+      throw error;
+    }
   },
 
   getAllApplications: async () => {
-    const result = await pool.query(`
-      SELECT id, room_name, hostel_name, applicant_name,
-             student_id, email, contact_number, reason,
-             status, created_at
-      FROM applications
-      ORDER BY created_at DESC;
-    `);
-    return result.rows;
+    try {
+      const result = await pool.query(`
+        SELECT id, room_name, hostel_name, applicant_name,
+               student_id, email, contact_number, reason,
+               status, created_at
+        FROM applications
+        ORDER BY created_at DESC;
+      `);
+      return result.rows;
+    } catch (error) {
+      console.error('❌ Error fetching applications:', error);
+      throw error;
+    }
   },
 
   updateStatus: async (applicationId, status) => {
@@ -71,8 +86,14 @@ const Application = {
       RETURNING *;
     `;
     const values = [status, applicationId];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+
+    try {
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    } catch (error) {
+      console.error('❌ Error updating application status:', error);
+      throw error;
+    }
   }
 };
 
@@ -85,8 +106,14 @@ const Room = {
       RETURNING *;
     `;
     const values = [isAvailable, roomName];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+
+    try {
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    } catch (error) {
+      console.error('❌ Error setting room availability:', error);
+      throw error;
+    }
   }
 };
 

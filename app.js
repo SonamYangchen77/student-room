@@ -10,6 +10,7 @@ const { ensureRoomsTable } = require('./models/Room');
 const { ensureHostelsTable } = require('./models/Hostel'); // Import here
 const { ensureApplicationsTable } = require('./models/Application');
 
+
 const authRoutes = require('./routes/authRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const adminRoutes = require('./routes/adminRoutes');
