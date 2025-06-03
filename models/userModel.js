@@ -1,6 +1,27 @@
 const pool = require('../config/db');  // Your PostgreSQL connection pool
 const bcrypt = require('bcrypt');
 
+const createUsersTable = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL
+      );
+    `);
+    console.log('✅ users table created');
+    process.exit();
+  } catch (err) {
+    console.error('❌ Error creating users table:', err);
+    process.exit(1);
+  }
+};
+
+createUsersTable();
+
+
 exports.createUser = async (name, email, password) => {
   // Hash the plain text password before storing
   const hashedPassword = await bcrypt.hash(password, 10);
