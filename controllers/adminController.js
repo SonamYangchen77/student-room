@@ -1,5 +1,5 @@
 const Application = require('../models/Application');
-const Room = require('../models/Room'); // Assuming you have a separate Room model
+const Room = require('../models/Room'); // Make sure this file exists too
 const { sendEmail } = require('../utils/email');
 
 const adminController = {
