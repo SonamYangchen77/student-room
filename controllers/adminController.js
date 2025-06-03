@@ -1,4 +1,4 @@
-const Application = require('../models/application');
+const Application = require('../models/Application');
 const Room = require('../models/Room'); // Assuming you have a separate Room model
 const { sendEmail } = require('../utils/email');
 
