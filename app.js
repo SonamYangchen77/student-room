@@ -6,7 +6,8 @@ const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 
 const { pool, ensureUsersTable } = require('./config/db');
-const { ensureRoomsTable } = require('./models/Room'); // Import ensureRoomsTable here
+const { ensureRoomsTable } = require('./models/Room');
+const { ensureHostelsTable } = require('./models/Hostel'); // Import here
 
 const authRoutes = require('./routes/authRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
@@ -23,7 +24,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ✅ Create session table if it doesn't exist
+// Create session table if it doesn't exist
 async function ensureSessionTable() {
   try {
     await pool.query(`
@@ -38,11 +39,11 @@ async function ensureSessionTable() {
     console.log('✅ Session table ensured');
   } catch (err) {
     console.error('❌ Failed to create session table:', err);
-    throw err; // Prevent server start if it fails
+    throw err;
   }
 }
 
-// ✅ Session setup using PostgreSQL store
+// Session setup
 app.use(session({
   store: new pgSession({
     pool: pool,
@@ -51,20 +52,20 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 days
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
 }));
 
-// ✅ EJS Setup
+// EJS Setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// ✅ Middleware
+// Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 
-// ✅ Routes
+// Routes
 app.use('/auth', authRoutes);
 app.use('/', availabilityRoutes);
 app.use('/', adminRoutes);
@@ -75,7 +76,7 @@ app.use('/api/hostels', require('./routes/hostelRoutes'));
 app.use('/', applicationRoutes);
 app.use('/', dashboardRoutes);
 
-// ✅ Views
+// Views
 app.get('/', (req, res) => {
   if (req.session.userId) return res.redirect('/home');
   res.render('landing', { error: null, success: null });
@@ -85,7 +86,6 @@ app.get('/dashboard', async (req, res) => {
   try {
     const result = await pool.query('SELECT COUNT(*) FROM users');
     const totalStudents = result.rows[0].count;
-
     res.render('dashboard', { totalStudents });
   } catch (err) {
     console.error('Dashboard error:', err);
@@ -144,7 +144,7 @@ app.get('/reset-password', (req, res) => {
   res.redirect(`/auth/reset-password?token=${req.query.token || ''}`);
 });
 
-// ✅ Global Error Handler
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).render('landing', {
@@ -153,11 +153,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ✅ Start Server after ensuring all DB schema
+// Start server after ensuring DB schema in correct order
 Promise.all([
   ensureUsersTable(),
   ensureSessionTable(),
-  ensureRoomsTable()  // Added here to ensure rooms table exists
+  ensureHostelsTable(),   // Ensure hostels table first
+  ensureRoomsTable()      // Then rooms table which references hostels
 ])
   .then(() => {
     app.listen(PORT, () => {
