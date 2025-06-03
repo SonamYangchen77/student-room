@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 
-const pool = require('./config/db'); // ✅ using only one pool from db.js
+const { pool, ensureUsersTable } = require('./config/db');
 
 const authRoutes = require('./routes/authRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
@@ -18,23 +18,8 @@ const studentController = require('./controllers/studentController');
 const dashboardController = require('./controllers/dashboardController');
 const authController = require('./controllers/authController');
 
-
-const createUsersTableIfNotExists = async () => {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      is_verified BOOLEAN DEFAULT false
-    );
-  `);
-  console.log('✅ Ensured users table exists');
-};
-
-createUsersTableIfNotExists();
-
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 // ✅ Session setup using PostgreSQL store
 app.use(session({
@@ -67,8 +52,6 @@ app.use('/', roomRoutes);
 app.use('/', reportRoutes);
 app.use('/api/hostels', require('./routes/hostelRoutes'));
 app.use('/', applicationRoutes);
-
-
 
 // ✅ Views
 app.get('/', (req, res) => {
@@ -141,8 +124,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ✅ Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+// ✅ Start Server after ensuring DB schema
+ensureUsersTable()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ Failed to set up database:", err);
+    process.exit(1);
+  });
