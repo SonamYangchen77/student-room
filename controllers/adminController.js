@@ -1,5 +1,5 @@
-const Application = require('../models/Application');
-const Room = require('../models/Room'); // Make sure this file exists too
+const { Application } = require('../models/Application');
+const Room = require('../models/Room');
 const { sendEmail } = require('../utils/email');
 
 const adminController = {
@@ -17,7 +17,6 @@ const adminController = {
     try {
       const applicationId = req.params.id;
 
-      // Update application status to approved
       const app = await Application.updateStatus(applicationId, 'approved');
 
       // Remove the room from the database
@@ -44,7 +43,6 @@ const adminController = {
 
       const app = await Application.updateStatus(applicationId, 'declined');
 
-      // Send decline email
       await sendEmail(
         app.email,
         'Hostel Application Declined',
@@ -56,7 +54,7 @@ const adminController = {
       console.error('Error declining application:', error);
       res.status(500).send('Server error');
     }
-  },
+  }
 };
 
 module.exports = adminController;
