@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { sendVerificationEmail, sendResetPasswordEmail } = require('../utils/mailer');
 require('dotenv').config();
 
-// SIGNUP CONTROLLER WITH EMAIL VERIFICATION AND EXPIRY
+// SIGNUP CONTROLLER WITH EXPIRY
 const signup = async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -20,7 +20,7 @@ const signup = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hrs
 
     await pool.query(
       'INSERT INTO users (name, email, password, is_verified, verification_token, verification_token_expires) VALUES ($1, $2, $3, false, $4, $5)',
@@ -32,12 +32,12 @@ const signup = async (req, res) => {
 
     return res.status(200).json({ success: 'Signup successful! Check your email for verification.' });
   } catch (err) {
-    console.error('Signup error:', err.message);
+    console.error('Signup error:', err);
     return res.status(500).json({ error: 'Server error during signup. Try again.' });
   }
 };
 
-// EMAIL VERIFICATION CONTROLLER WITH EXPIRY CHECK
+// VERIFY EMAIL CONTROLLER
 const verifyEmail = async (req, res) => {
   const { token } = req.query;
 
@@ -77,7 +77,7 @@ const verifyEmail = async (req, res) => {
       loginUrl: '/landing'
     });
   } catch (err) {
-    console.error('Email verification error:', err.message);
+    console.error('Email verification error:', err);
     return res.status(500).send('Server error during email verification.');
   }
 };
@@ -87,9 +87,16 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    const adminEmail = process.env.ADMIN_EMAIL?.trim();
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+
+    if (!adminEmail || !adminPassword) {
+      console.error('ADMIN_EMAIL or ADMIN_PASSWORD not set in environment variables');
+    }
+
     if (
-      email.trim() === process.env.ADMIN_EMAIL?.trim() &&
-      password.trim() === process.env.ADMIN_PASSWORD?.trim()
+      email.trim() === adminEmail &&
+      password.trim() === adminPassword
     ) {
       req.session.admin = true;
       res.cookie('userEmail', email, { httpOnly: true, maxAge: 86400000 });
@@ -116,8 +123,8 @@ const login = async (req, res) => {
     res.cookie('userEmail', user.email, { httpOnly: true, maxAge: 86400000 });
     return res.status(200).json({ success: true, redirect: '/home' });
   } catch (err) {
-    console.error('Login error:', err.message);
-    return res.status(500).json({ error: 'Server error during login' });
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Unexpected server error. Please try again later.' });
   }
 };
 
